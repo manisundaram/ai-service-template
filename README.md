@@ -11,7 +11,7 @@ Use this template when you want a production-shaped FastAPI service that can con
 The template imports shared contracts and helpers from `ai_service_kit`, including:
 
 - **Provider & Vectorstore**: Registry and factory wiring for bootstrap setup
-- **Health Monitoring**: Comprehensive health checks with status aggregation  
+- **Health Monitoring**: Comprehensive health checks with status aggregation
 - **Lightweight Ping**: Optimized ping service for rapid health checks
 - **Diagnostics**: Deep system analysis with performance benchmarks
 - **Metrics**: Operational metrics collection for monitoring dashboards
@@ -27,7 +27,7 @@ This keeps the application layer thin while `ai-service-kit` acts as the shared 
 ├── pyproject.toml           # Python project configuration
 ├── requirements.txt         # Python dependencies
 ├── app/                     # Application source code
-│   ├── __init__.py         
+│   ├── __init__.py
 │   ├── bootstrap.py         # ServiceContext builder with health resolvers
 │   ├── config.py           # Settings management with secret masking
 │   └── main.py             # FastAPI app with operational endpoints
@@ -44,6 +44,7 @@ The template provides comprehensive operational endpoints for production monitor
 - **`GET /diagnostics`** - Deep system analysis with performance benchmarks and provider tests
 - **`GET /metrics`** - Prometheus-style metrics for monitoring dashboards
 - **`GET /debug/config`** - Configuration introspection with masked secrets (debug mode only)
+
 ## Install dependencies
 
 Install the application dependencies, including the local editable sibling dependency on `ai-service-kit`:
