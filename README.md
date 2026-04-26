@@ -48,6 +48,7 @@ The template provides comprehensive operational endpoints for production monitor
 The template includes enterprise-grade logging features powered by `ai-service-kit`:
 
 ### **Core Features**
+
 - **Structured JSON Logs**: Production-ready log format for easy parsing and analysis
 - **Request Correlation**: Automatic request tracking and correlation across services
 - **Multi-Level Logging**: Separate log levels for console, file, and error outputs
@@ -55,12 +56,14 @@ The template includes enterprise-grade logging features powered by `ai-service-k
 - **Static Logger Interface**: Simple `Logger.info()`, `Logger.error()` usage throughout codebase
 
 ### **Cloud Provider Integration**
+
 - **AWS CloudWatch**: Cost-optimized error-only logging for production monitoring
 - **Datadog**: Rich dashboards with info-level logging for comprehensive insights
 - **Azure Monitor**: Enterprise monitoring integration for Azure environments
 - **Google Cloud Logging**: Native GCP log aggregation and analysis
 
 ### **Configuration Example**
+
 ```bash
 # Enable structured JSON logs for production
 LOG_STRUCTURED=true
@@ -96,7 +99,7 @@ For production environments with cloud logging, install additional dependencies 
 # For AWS CloudWatch logging
 pip install boto3>=1.26.0
 
-# For Datadog logging  
+# For Datadog logging
 pip install datadog>=0.44.0
 
 # For Azure Monitor logging
@@ -118,11 +121,13 @@ copy .env.example .env
 ```
 
 Update `.env` with:
+
 - **Provider credentials** and runtime values you want to use
 - **Enhanced logging configuration** including log levels, structured logging, and file rotation
 - **Cloud provider settings** (optional) for production logging integration
 
 Key configuration sections:
+
 - **Application Settings**: `APP_NAME`, `APP_ENV`, `APP_DEBUG`
 - **Provider Configuration**: `PROVIDER_TYPE`, API keys for OpenAI/Gemini/Claude
 - **Enhanced Logging**: `LOG_LEVEL`, `LOG_STRUCTURED`, `LOG_DIR`, cloud provider settings
@@ -141,6 +146,7 @@ The application will be available at `http://localhost:8000` with automatic API 
 ### Production Logging Output
 
 In production mode (`APP_ENV=production`), you'll see structured JSON logs like:
+
 ```
 2026-04-26 18:30:24 [INFO] [ai-service] app.main - Starting AI Service Template v0.1.0 in development mode
 2026-04-26 18:31:39 [INFO] [ai-service] app.main - Health check completed with status: healthy
