@@ -14,6 +14,7 @@ from ai_service_kit.health import (
     ServiceContext,
     VectorStoreDiagnosticsResult,
 )
+from ai_service_kit.logging import Logger
 
 from .config import Settings
 
@@ -49,69 +50,116 @@ class ConfigurationHealthCheck(BaseHealthCheck):
         return "configuration"
 
     async def run(self) -> CheckResult:
-        provider_name = self._settings.provider_type.strip().lower()
-        vectorstore_backend = self._settings.vectorstore_backend.strip().lower()
-        errors: list[str] = []
+        try:
+            Logger.debug("Running configuration health check")
+            provider_name = self._settings.provider_type.strip().lower()
+            vectorstore_backend = self._settings.vectorstore_backend.strip().lower()
+            errors: list[str] = []
 
-        if provider_name not in SUPPORTED_PROVIDERS:
-            errors.append(f"Unsupported provider: {provider_name}")
-        elif not self._settings.selected_provider_api_key():
-            errors.append(f"Missing API key for provider: {provider_name}")
+            if provider_name not in SUPPORTED_PROVIDERS:
+                error_msg = f"Unsupported provider: {provider_name}"
+                Logger.warning(error_msg)
+                errors.append(error_msg)
+            elif not self._settings.selected_provider_api_key():
+                error_msg = f"Missing API key for provider: {provider_name}"
+                Logger.warning(error_msg)
+                errors.append(error_msg)
 
-        if vectorstore_backend not in SUPPORTED_VECTORSTORES:
-            errors.append(f"Unsupported vector store backend: {vectorstore_backend}")
+            if vectorstore_backend not in SUPPORTED_VECTORSTORES:
+                error_msg = f"Unsupported vector store backend: {vectorstore_backend}"
+                Logger.warning(error_msg)
+                errors.append(error_msg)
 
-        if not errors:
-            status = HealthStatus.HEALTHY
-            summary = "Operational configuration is valid"
-        elif any(error.startswith("Unsupported") for error in errors):
-            status = HealthStatus.CRITICAL
-            summary = "Operational configuration contains unsupported components"
-        else:
-            status = HealthStatus.DEGRADED
-            summary = "Operational configuration is incomplete"
+            if not errors:
+                status = HealthStatus.HEALTHY
+                summary = "Operational configuration is valid"
+                Logger.debug("Configuration health check passed")
+            elif any(error.startswith("Unsupported") for error in errors):
+                status = HealthStatus.CRITICAL
+                summary = "Operational configuration contains unsupported components"
+                Logger.error(f"Configuration health check critical: {summary}")
+            else:
+                status = HealthStatus.DEGRADED
+                summary = "Operational configuration is incomplete"
+                Logger.warning(f"Configuration health check degraded: {summary}")
 
-        return CheckResult(
-            name=self.name,
-            status=status,
-            summary=summary,
-            details={
-                "provider_type": provider_name,
-                "available_providers": list(SUPPORTED_PROVIDERS),
-                "vectorstore_backend": vectorstore_backend,
-                "available_vectorstores": list(SUPPORTED_VECTORSTORES),
-            },
-            errors=tuple(errors),
-        )
+            return CheckResult(
+                name=self.name,
+                status=status,
+                summary=summary,
+                details={
+                    "provider_type": provider_name,
+                    "available_providers": list(SUPPORTED_PROVIDERS),
+                    "vectorstore_backend": vectorstore_backend,
+                    "available_vectorstores": list(SUPPORTED_VECTORSTORES),
+                },
+                errors=tuple(errors),
+            )
+        except Exception as e:
+            Logger.error(f"Configuration health check failed: {e}", exc_info=True)
+            return CheckResult(
+                name=self.name,
+                status=HealthStatus.CRITICAL,
+                summary="Configuration health check failed",
+                details={},
+                errors=(str(e),),
+            )
 
 
 def _build_provider_runtime(settings: Settings) -> ProviderRuntime:
-    provider_name = settings.provider_type.strip().lower()
-    supported = provider_name in SUPPORTED_PROVIDERS
-    configured = supported and bool(settings.selected_provider_api_key())
-    initialized = configured
-    return ProviderRuntime(
-        name=provider_name,
-        model=settings.selected_provider_model(),
-        configured=configured,
-        supported=supported,
-        initialized=initialized,
-    )
+    try:
+        provider_name = settings.provider_type.strip().lower()
+        supported = provider_name in SUPPORTED_PROVIDERS
+        configured = supported and bool(settings.selected_provider_api_key())
+        initialized = configured
+        
+        Logger.debug(f"Built provider runtime: {provider_name} (configured: {configured}, supported: {supported})")
+        
+        return ProviderRuntime(
+            name=provider_name,
+            model=settings.selected_provider_model(),
+            configured=configured,
+            supported=supported,
+            initialized=initialized,
+        )
+    except Exception as e:
+        Logger.error(f"Failed to build provider runtime: {e}", exc_info=True)
+        return ProviderRuntime(
+            name="unknown",
+            model=None,
+            configured=False,
+            supported=False,
+            initialized=False,
+        )
 
 
 def _build_vectorstore_runtime(settings: Settings) -> VectorStoreRuntime:
-    backend = settings.vectorstore_backend.strip().lower()
-    supported = backend in SUPPORTED_VECTORSTORES
-    configured = supported and bool(settings.default_collection_name)
-    initialized = configured
-    return VectorStoreRuntime(
-        backend=backend,
-        default_collection_name=settings.default_collection_name,
-        configured=configured,
-        supported=supported,
-        initialized=initialized,
-        collections_count=1 if configured else 0,
-    )
+    try:
+        backend = settings.vectorstore_backend.strip().lower()
+        supported = backend in SUPPORTED_VECTORSTORES
+        configured = supported and bool(settings.default_collection_name)
+        initialized = configured
+        
+        Logger.debug(f"Built vectorstore runtime: {backend} (configured: {configured}, supported: {supported})")
+        
+        return VectorStoreRuntime(
+            backend=backend,
+            default_collection_name=settings.default_collection_name,
+            configured=configured,
+            supported=supported,
+            initialized=initialized,
+            collections_count=1 if configured else 0,
+        )
+    except Exception as e:
+        Logger.error(f"Failed to build vectorstore runtime: {e}", exc_info=True)
+        return VectorStoreRuntime(
+            backend="unknown",
+            default_collection_name="",
+            configured=False,
+            supported=False,
+            initialized=False,
+            collections_count=0,
+        )
 
 
 def _provider_status(provider_runtime: ProviderRuntime) -> ComponentStatus:
@@ -202,49 +250,89 @@ def debug_snapshot(context: ServiceContext) -> dict[str, Any]:
 
 
 def build_service_context(settings: Settings) -> ServiceContext:
-    provider_runtime = _build_provider_runtime(settings)
-    vectorstore_runtime = _build_vectorstore_runtime(settings)
-    metrics_collector = NoOpMetricsCollector()
-    configuration_check = ConfigurationHealthCheck(settings)
+    try:
+        Logger.info(f"Building service context for {settings.app_name} v{settings.app_version}")
+        
+        provider_runtime = _build_provider_runtime(settings)
+        vectorstore_runtime = _build_vectorstore_runtime(settings)
+        metrics_collector = NoOpMetricsCollector()
+        configuration_check = ConfigurationHealthCheck(settings)
 
-    async def provider_status_resolver() -> tuple[ComponentStatus, ...]:
-        return (_provider_status(provider_runtime),)
+        async def provider_status_resolver() -> tuple[ComponentStatus, ...]:
+            try:
+                result = (_provider_status(provider_runtime),)
+                Logger.debug("Provider status resolved successfully")
+                return result
+            except Exception as e:
+                Logger.error(f"Provider status resolution failed: {e}", exc_info=True)
+                raise
 
-    async def vectorstore_status_resolver() -> tuple[ComponentStatus, ...]:
-        return (_vectorstore_status(vectorstore_runtime),)
+        async def vectorstore_status_resolver() -> tuple[ComponentStatus, ...]:
+            try:
+                result = (_vectorstore_status(vectorstore_runtime),)
+                Logger.debug("Vectorstore status resolved successfully")
+                return result
+            except Exception as e:
+                Logger.error(f"Vectorstore status resolution failed: {e}", exc_info=True)
+                raise
 
-    async def provider_diagnostics_resolver() -> tuple[ProviderDiagnosticsResult, ...]:
-        return (_provider_diagnostics(provider_runtime),)
+        async def provider_diagnostics_resolver() -> tuple[ProviderDiagnosticsResult, ...]:
+            try:
+                result = (_provider_diagnostics(provider_runtime),)
+                Logger.debug("Provider diagnostics resolved successfully")
+                return result
+            except Exception as e:
+                Logger.error(f"Provider diagnostics resolution failed: {e}", exc_info=True)
+                raise
 
-    async def vectorstore_diagnostics_resolver() -> tuple[VectorStoreDiagnosticsResult, ...]:
-        return (_vectorstore_diagnostics(vectorstore_runtime),)
+        async def vectorstore_diagnostics_resolver() -> tuple[VectorStoreDiagnosticsResult, ...]:
+            try:
+                result = (_vectorstore_diagnostics(vectorstore_runtime),)
+                Logger.debug("Vectorstore diagnostics resolved successfully")
+                return result
+            except Exception as e:
+                Logger.error(f"Vectorstore diagnostics resolution failed: {e}", exc_info=True)
+                raise
 
-    async def benchmarks_resolver() -> dict[str, Any]:
-        return {
-            "bootstrap": {
-                "provider_initialized": provider_runtime.initialized,
-                "vectorstore_initialized": vectorstore_runtime.initialized,
-            }
-        }
+        async def benchmarks_resolver() -> dict[str, Any]:
+            try:
+                result = {
+                    "bootstrap": {
+                        "provider_initialized": provider_runtime.initialized,
+                        "vectorstore_initialized": vectorstore_runtime.initialized,
+                    }
+                }
+                Logger.debug("Benchmarks resolved successfully")
+                return result
+            except Exception as e:
+                Logger.error(f"Benchmarks resolution failed: {e}", exc_info=True)
+                raise
 
-    return ServiceContext(
-        service_name=settings.app_name,
-        service_version=settings.app_version,
-        provider=provider_runtime.name,
-        available_providers=SUPPORTED_PROVIDERS,
-        vectorstore=vectorstore_runtime.backend,
-        available_vectorstores=SUPPORTED_VECTORSTORES,
-        mock_mode=settings.mock_mode,
-        debug_mode=settings.app_debug,
-        cors_enabled=settings.enable_cors,
-        masked_secrets=settings.masked_secrets(),
-        settings=settings.operational_settings(),
-        metrics_collector=metrics_collector,
-        health_checks=(configuration_check,),
-        diagnostics_checks=(configuration_check,),
-        provider_status_resolver=provider_status_resolver,
-        vectorstore_status_resolver=vectorstore_status_resolver,
-        provider_diagnostics_resolver=provider_diagnostics_resolver,
-        vectorstore_diagnostics_resolver=vectorstore_diagnostics_resolver,
-        benchmarks_resolver=benchmarks_resolver,
-    )
+        context = ServiceContext(
+            service_name=settings.app_name,
+            service_version=settings.app_version,
+            provider=provider_runtime.name,
+            available_providers=SUPPORTED_PROVIDERS,
+            vectorstore=vectorstore_runtime.backend,
+            available_vectorstores=SUPPORTED_VECTORSTORES,
+            mock_mode=settings.mock_mode,
+            debug_mode=settings.app_debug,
+            cors_enabled=settings.enable_cors,
+            masked_secrets=settings.masked_secrets(),
+            settings=settings.operational_settings(),
+            metrics_collector=metrics_collector,
+            health_checks=(configuration_check,),
+            diagnostics_checks=(configuration_check,),
+            provider_status_resolver=provider_status_resolver,
+            vectorstore_status_resolver=vectorstore_status_resolver,
+            provider_diagnostics_resolver=provider_diagnostics_resolver,
+            vectorstore_diagnostics_resolver=vectorstore_diagnostics_resolver,
+            benchmarks_resolver=benchmarks_resolver,
+        )
+        
+        Logger.info(f"Service context built successfully for provider: {provider_runtime.name}, vectorstore: {vectorstore_runtime.backend}")
+        return context
+        
+    except Exception as e:
+        Logger.error(f"Failed to build service context: {e}", exc_info=True)
+        raise
