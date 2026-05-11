@@ -1,171 +1,170 @@
 # ai-service-template
 
-`ai-service-template` is a production-ready FastAPI application template for building AI-facing services on top of the shared `ai-service-kit` library. It provides a complete operational foundation with health monitoring, diagnostics, metrics, optimized ping endpoints, and **enhanced production logging** with cloud provider integration.
+## Start Here
 
-## What this template is for
+Clone this template to create a new FastAPI service. Keep `ai-service-kit` as the shared dependency for reusable infrastructure instead of copying provider, operational, or logging internals into the new repo.
 
-Use this template when you want a production-shaped FastAPI service that can consume provider, health, and vectorstore abstractions from `ai-service-kit` without re-implementing those contracts in each new project. The template includes comprehensive operational endpoints for monitoring, debugging, performance tracking, and **enterprise-grade logging** with cloud provider support.
+## Documentation Map
 
-## How it uses ai-service-kit
+- [Setup and Run](#setup-and-run)
+- [Provider Configuration](#provider-configuration-important)
+- [Logging and Cloud Providers](#logging-provider-activation)
+- [Operational Endpoints](#operational-endpoints)
+- [Testing](#testing)
 
-The template imports shared contracts and helpers from `ai_service_kit`, including:
+## How This Template Uses ai-service-kit
 
-- **Provider & Vectorstore**: Registry and factory wiring for bootstrap setup
-- **Health Monitoring**: Comprehensive health checks with status aggregation
-- **Lightweight Ping**: Optimized ping service for rapid health checks
-- **Diagnostics**: Deep system analysis with performance benchmarks
-- **Metrics**: Operational metrics collection for monitoring dashboards
-- **Enhanced Production Logging**: Structured JSON logs, request correlation, and cloud provider integration (AWS CloudWatch, Datadog, Azure Monitor, Google Cloud Logging)
+This template intentionally reuses these `ai-service-kit` capabilities:
 
-## Project structure
+- provider abstractions
+- health, diagnostics, metrics, and ping operational endpoints
+- logging middleware and enhanced logging setup
+- settings helpers, including the 2-level provider fallback
 
-```text
-.
-├── .env.example              # Environment configuration template
-├── pyproject.toml           # Python project configuration
-├── requirements.txt         # Python dependencies
-├── app/                     # Application source code
-│   ├── __init__.py
-│   ├── bootstrap.py         # ServiceContext builder with health resolvers
-│   ├── config.py           # Settings management with secret masking
-│   └── main.py             # FastAPI app with operational endpoints
-└── tests/                   # Test suite
-    └── test_app.py         # Endpoint validation tests
-```
+The app-specific repo keeps only service-local settings, bootstrap wiring, and any future business routes.
 
-## Operational Endpoints
+## Setup and Run
 
-The template provides comprehensive operational endpoints for production monitoring:
-
-- **`GET /ping`** - Lightweight health check optimized for load balancers (returns `ok` status)
-- **`GET /health`** - Comprehensive health report with provider/vectorstore status checks
-- **`GET /diagnostics`** - Deep system analysis with performance benchmarks and provider tests
-- **`GET /metrics`** - Prometheus-style metrics for monitoring dashboards
-- **`GET /debug/config`** - Configuration introspection with masked secrets
-
-## Enhanced Production Logging
-
-The template includes enterprise-grade logging features powered by `ai-service-kit`:
-
-### **Core Features**
-
-- **Structured JSON Logs**: Production-ready log format for easy parsing and analysis
-- **Request Correlation**: Automatic request tracking and correlation across services
-- **Multi-Level Logging**: Separate log levels for console, file, and error outputs
-- **Automatic Log Rotation**: Configurable file size limits and backup retention
-- **Static Logger Interface**: Simple `Logger.info()`, `Logger.error()` usage throughout codebase
-
-### **Cloud Provider Integration**
-
-- **AWS CloudWatch**: Cost-optimized error-only logging for production monitoring
-- **Datadog**: Rich dashboards with info-level logging for comprehensive insights
-- **Azure Monitor**: Enterprise monitoring integration for Azure environments
-- **Google Cloud Logging**: Native GCP log aggregation and analysis
-
-### **Configuration Example**
-
-```bash
-# Enable structured JSON logs for production
-LOG_STRUCTURED=true
-LOG_LEVEL=INFO
-
-# Enable cloud logging (comma-separated)
-CLOUD_LOGGING_PROVIDERS=aws,datadog
-
-# AWS CloudWatch (errors only)
-AWS_LOGGING_ENABLED=true
-AWS_LOGGING_LEVEL=ERROR
-AWS_LOG_GROUP=/ai-service-template/production
-
-# Datadog (rich dashboards)
-DATADOG_LOGGING_ENABLED=true
-DATADOG_LOGGING_LEVEL=INFO
-DATADOG_API_KEY=your-datadog-api-key
-```
-
-## Install dependencies
-
-Install the application dependencies, including the local editable sibling dependency on `ai-service-kit`:
+Install the template and its shared dependency:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Optional: Cloud Provider Dependencies
-
-For production environments with cloud logging, install additional dependencies as needed:
+Optional cloud logging dependencies:
 
 ```bash
-# For AWS CloudWatch logging
 pip install boto3>=1.26.0
-
-# For Datadog logging
-pip install datadog>=0.44.0
-
-# For Azure Monitor logging
 pip install applicationinsights>=0.11.0
-
-# For Google Cloud Logging
 pip install google-cloud-logging>=3.0.0
-
-# Install all cloud providers at once
-pip install boto3>=1.26.0 applicationinsights>=0.11.0 google-cloud-logging>=3.0.0 datadog>=0.44.0
+pip install datadog>=0.44.0
 ```
 
-## Configure environment variables
-
-Create your local environment file from the example:
+Create a local environment file:
 
 ```bash
 copy .env.example .env
 ```
 
-Update `.env` with:
-
-- **Provider credentials** and runtime values you want to use
-- **Enhanced logging configuration** including log levels, structured logging, and file rotation
-- **Cloud provider settings** (optional) for production logging integration
-
-Key configuration sections:
-
-- **Application Settings**: `APP_NAME`, `APP_ENV`, `APP_DEBUG`
-- **Provider Configuration**: `PROVIDER_TYPE`, API keys for OpenAI/Gemini/Claude
-- **Enhanced Logging**: `LOG_LEVEL`, `LOG_STRUCTURED`, `LOG_DIR`, cloud provider settings
-- **CORS Configuration**: `ENABLE_CORS`, `CORS_ORIGINS`
-
-## Run the app
-
-Start the FastAPI application with Uvicorn:
+Run the service:
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-The application will be available at `http://localhost:8000` with automatic API documentation at `/docs`.
+The default app exposes API docs at `http://localhost:8000/docs`.
 
-### Production Logging Output
+## Provider Configuration (Important)
 
-In production mode (`APP_ENV=production`), you'll see structured JSON logs like:
+This template uses a strict 2-level fallback and nothing else:
 
+1. family-specific key
+2. shared provider key
+
+That means each resolved setting follows the pattern below:
+
+- LLM OpenAI API key: `LLM_OPENAI_API_KEY` -> `OPENAI_API_KEY`
+- Embedding OpenAI model: `EMBEDDING_OPENAI_MODEL` -> `OPENAI_MODEL`
+
+Use `PROVIDER` when both families should default to the same provider. Override with `LLM_PROVIDER` or `EMBEDDING_PROVIDER` only when you need a split.
+
+Example: same provider for both families
+
+```env
+PROVIDER=openai
+
+OPENAI_API_KEY=shared-openai-key
+OPENAI_MODEL=gpt-4o-mini
+
+EMBEDDING_OPENAI_MODEL=text-embedding-3-small
 ```
-2026-04-26 18:30:24 [INFO] [ai-service] app.main - Starting AI Service Template v0.1.0 in development mode
-2026-04-26 18:31:39 [INFO] [ai-service] app.main - Health check completed with status: healthy
+
+Example: split provider families
+
+```env
+PROVIDER=openai
+LLM_PROVIDER=gemini
+EMBEDDING_PROVIDER=openai
+
+OPENAI_API_KEY=shared-openai-key
+EMBEDDING_OPENAI_MODEL=text-embedding-3-small
+
+LLM_GEMINI_API_KEY=gemini-key
+LLM_GEMINI_MODEL=gemini-2.5-flash
 ```
 
-Cloud provider integrations automatically forward logs to your configured services.
+Supported template provider names are `openai`, `gemini`, and `anthropic`. Legacy `claude` values are normalized to `anthropic` for compatibility.
 
-### Endpoint Performance Notes
+## Logging Provider Activation
 
-- **`/ping`**: Uses optimized `ping_service()` for sub-millisecond responses - ideal for load balancer health checks
-- **`/health`**: Performs comprehensive checks including provider connectivity - use for detailed monitoring
-- **`/diagnostics`**: Includes performance benchmarks and deep analysis - use for troubleshooting
+`CLOUD_LOGGING_PROVIDERS` is the only activation mechanism.
 
-## Run tests
+Provider-specific settings only configure providers named in that list.
 
-Execute the test suite with pytest:
+AWS required settings:
+
+- `AWS_LOGGING_LEVEL`
+- `AWS_LOG_GROUP`
+- `AWS_REGION`
+
+Azure required settings:
+
+- `AZURE_LOGGING_LEVEL`
+- `AZURE_CONNECTION_STRING`
+
+GCP required settings:
+
+- `GCP_LOGGING_LEVEL`
+- `GCP_PROJECT_ID` when default project discovery is not available
+
+Datadog required settings:
+
+- `DATADOG_LOGGING_LEVEL`
+- `DATADOG_API_KEY`
+
+Example:
+
+```env
+CLOUD_LOGGING_PROVIDERS=aws,datadog
+
+AWS_LOGGING_LEVEL=ERROR
+AWS_LOG_GROUP=/my-service/production
+AWS_REGION=us-east-1
+
+DATADOG_LOGGING_LEVEL=INFO
+DATADOG_API_KEY=your-datadog-api-key
+```
+
+## Operational Endpoints
+
+This template registers the standard `ai-service-kit` operational scaffold:
+
+- `GET /ping`: lightweight uptime probe for load balancers and basic readiness checks
+- `GET /health`: service health with configuration and component status
+- `GET /diagnostics`: deeper runtime diagnostics and bootstrap benchmark details
+- `GET /metrics`: normalized metrics payload from the active metrics collector
+- `GET /debug/config`: masked settings snapshot plus bootstrap state
+
+Middleware wiring also comes from `ai-service-kit`, including request logging correlation and CORS setup.
+
+## Testing
+
+Run the full suite with:
 
 ```bash
 pytest
 ```
 
-All tests validate endpoint functionality, response schemas, and service integration. The test suite includes validation for all operational endpoints and their expected response formats.
+The tests cover:
+
+- 2-level provider fallback behavior
+- operational endpoint responses
+- cloud logging provider parsing
+
+## Clone Checklist
+
+1. Rename app and service values such as `APP_NAME`, package metadata, and any business-specific module names.
+2. Configure shared and family-specific providers using the 2-level fallback model.
+3. Configure `CLOUD_LOGGING_PROVIDERS` and required provider credentials.
+4. Run tests.
+5. Verify `/ping`, `/health`, `/diagnostics`, `/metrics`, and `/debug/config` locally.

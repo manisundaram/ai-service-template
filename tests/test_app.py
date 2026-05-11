@@ -23,10 +23,13 @@ def test_health_endpoint() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["version"] == app.state.settings.app_version
-    assert payload["configuration"]["provider"] == app.state.settings.provider_type
+    assert payload["configuration"]["provider"] == app.state.settings.provider_summary()
+    assert payload["configuration"]["settings"]["llm_provider"] == app.state.settings.resolved_provider("llm")
+    assert payload["configuration"]["settings"]["embedding_provider"] == app.state.settings.resolved_provider("embedding")
     assert payload["configuration"]["vectorstore"] == app.state.settings.vectorstore_backend
     assert payload["checks"][0]["name"] == "configuration"
-    assert payload["providers"][0]["name"] == app.state.settings.provider_type
+    assert payload["providers"][0]["name"] == f"llm:{app.state.settings.resolved_provider('llm')}"
+    assert payload["providers"][1]["name"] == f"embedding:{app.state.settings.resolved_provider('embedding')}"
 
 
 def test_diagnostics_endpoint() -> None:
@@ -34,7 +37,8 @@ def test_diagnostics_endpoint() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["providers"][0]["provider"] == app.state.settings.provider_type
+    assert payload["providers"][0]["provider"] == f"llm:{app.state.settings.resolved_provider('llm')}"
+    assert payload["providers"][1]["provider"] == f"embedding:{app.state.settings.resolved_provider('embedding')}"
     assert payload["vectorstores"][0]["backend"] == app.state.settings.vectorstore_backend
     assert payload["summary"]["total_checks"] >= 3
     assert "bootstrap" in payload["performance_benchmarks"]
@@ -47,7 +51,7 @@ def test_metrics_endpoint() -> None:
     payload = response.json()
     assert payload["service_name"] == app.state.settings.app_name
     assert payload["service_version"] == app.state.settings.app_version
-    assert payload["provider"] == app.state.settings.provider_type
+    assert payload["provider"] == app.state.settings.provider_summary()
     assert payload["vectorstore"] == app.state.settings.vectorstore_backend
     assert payload["collection_period"] == "lifetime"
     assert payload["performance"] == {}
@@ -76,4 +80,6 @@ def test_debug_config_exposes_bootstrap_context() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["bootstrap"]["service_name"] == app.state.settings.app_name
-    assert payload["bootstrap"]["configuration"]["available_providers"] == ["openai", "gemini", "claude"]
+    assert payload["bootstrap"]["configuration"]["available_providers"] == ["anthropic", "gemini", "openai"]
+    assert payload["app"]["llm_provider"] == app.state.settings.resolved_provider("llm")
+    assert payload["app"]["embedding_provider"] == app.state.settings.resolved_provider("embedding")

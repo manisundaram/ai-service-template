@@ -32,6 +32,44 @@ def test_settings_parse_env_values() -> None:
     assert settings.cors_origins == ["http://localhost:3000", "http://localhost:5173"]
 
 
+def test_two_level_provider_fallback_supports_family_override() -> None:
+    settings = Settings(
+        PROVIDER="openai",
+        LLM_PROVIDER="gemini",
+        OPENAI_API_KEY="shared-openai-key",
+        OPENAI_MODEL="text-embedding-3-small",
+        LLM_GEMINI_API_KEY="gemini-family-key",
+        LLM_GEMINI_MODEL="gemini-2.5-flash",
+    )
+
+    assert settings.resolved_provider("llm") == "gemini"
+    assert settings.resolved_provider("embedding") == "openai"
+    assert settings.llm_provider_config() == {
+        "api_key": "gemini-family-key",
+        "model": "gemini-2.5-flash",
+    }
+    assert settings.embedding_provider_config() == {
+        "api_key": "shared-openai-key",
+        "model": "text-embedding-3-small",
+    }
+    assert settings.provider_setting_sources("llm") == {
+        "api_key": "LLM_GEMINI_API_KEY",
+        "model": "LLM_GEMINI_MODEL",
+    }
+    assert settings.provider_setting_sources("embedding") == {
+        "api_key": "OPENAI_API_KEY",
+        "model": "OPENAI_MODEL",
+    }
+
+
+def test_cloud_logging_providers_parse_and_normalize() -> None:
+    settings = Settings(
+        CLOUD_LOGGING_PROVIDERS=" AWS, datadog ,GCP ",
+    )
+
+    assert settings.cloud_logging_providers == ["aws", "datadog", "gcp"]
+
+
 def test_settings_mask_debug_config() -> None:
     settings = Settings(
         OPENAI_API_KEY="abcd1234wxyz",
@@ -52,7 +90,7 @@ def test_build_service_context_wires_operational_fields() -> None:
         APP_VERSION="1.2.3",
         APP_DEBUG=True,
         MOCK_MODE=False,
-        PROVIDER_TYPE="openai",
+        PROVIDER="openai",
         OPENAI_API_KEY="abcd1234wxyz",
         OPENAI_MODEL="text-embedding-3-small",
         VECTORSTORE_BACKEND="chroma",
@@ -65,12 +103,14 @@ def test_build_service_context_wires_operational_fields() -> None:
     assert context.service_name == "template-service"
     assert context.service_version == "1.2.3"
     assert context.provider == "openai"
-    assert context.available_providers == ("openai", "gemini", "claude")
+    assert context.available_providers == ("anthropic", "gemini", "openai")
     assert context.vectorstore == "chroma"
     assert context.available_vectorstores == ("chroma",)
     assert context.masked_secrets["openai_api_key"] == "abcd****wxyz"
-    assert context.provider_status_resolver is not None
-    assert context.vectorstore_status_resolver is not None
-    assert context.provider_diagnostics_resolver is not None
-    assert context.vectorstore_diagnostics_resolver is not None
-    assert context.benchmarks_resolver is not None
+    assert len(context.provider_statuses) == 2
+    assert context.provider_statuses[0].name == "llm:openai"
+    assert context.provider_statuses[1].name == "embedding:openai"
+    assert context.vectorstore_statuses[0].name == "chroma"
+    assert context.provider_diagnostics[0].provider == "llm:openai"
+    assert context.provider_diagnostics[1].provider == "embedding:openai"
+    assert context.performance_benchmarks["bootstrap"]["llm_provider_initialized"] is True

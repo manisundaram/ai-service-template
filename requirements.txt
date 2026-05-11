@@ -1,4 +1,4 @@
--e ../ai-service-kit
+ai-service-kit>=0.1.0
 fastapi
 uvicorn[standard]
 pydantic
