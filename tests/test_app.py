@@ -80,6 +80,6 @@ def test_debug_config_exposes_bootstrap_context() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["bootstrap"]["service_name"] == app.state.settings.app_name
-    assert payload["bootstrap"]["configuration"]["available_providers"] == ["anthropic", "gemini", "openai"]
+    assert payload["bootstrap"]["configuration"]["available_providers"] == ["anthropic", "gemini", "mock", "openai"]
     assert payload["app"]["llm_provider"] == app.state.settings.resolved_provider("llm")
     assert payload["app"]["embedding_provider"] == app.state.settings.resolved_provider("embedding")

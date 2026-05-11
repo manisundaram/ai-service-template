@@ -68,6 +68,8 @@ That means each resolved setting follows the pattern below:
 
 Use `PROVIDER` when both families should default to the same provider. Override with `LLM_PROVIDER` or `EMBEDDING_PROVIDER` only when you need a split.
 
+`mock` is now a first-class provider in `ai-service-kit`, so you can select it through `.env` exactly like `openai`, `gemini`, or `anthropic`.
+
 Example: same provider for both families
 
 ```env
@@ -94,6 +96,26 @@ LLM_GEMINI_MODEL=gemini-2.5-flash
 ```
 
 Supported template provider names are `openai`, `gemini`, and `anthropic`. Legacy `claude` values are normalized to `anthropic` for compatibility.
+
+Mock provider example:
+
+```env
+PROVIDER=mock
+
+LLM_PROVIDER=mock
+LLM_MOCK_MODEL=mock-llm
+LLM_MOCK_PREFIX=template-
+
+EMBEDDING_PROVIDER=mock
+EMBEDDING_MOCK_MODEL=mock-embed
+EMBEDDING_MOCK_DIMENSION=1536
+```
+
+Mock provider notes:
+
+- Mock providers require no API credentials.
+- `MOCK_MODE` still appears in operational/debug output, but provider behavior is controlled by provider selection through `PROVIDER`, `LLM_PROVIDER`, and `EMBEDDING_PROVIDER`.
+- For mock providers, the template supports shared keys like `MOCK_MODEL`, `MOCK_SEED`, and `MOCK_LATENCY_MS`, plus family overrides such as `LLM_MOCK_PREFIX` or `EMBEDDING_MOCK_DIMENSION`.
 
 ## Logging Provider Activation
 

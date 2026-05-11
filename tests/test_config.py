@@ -62,6 +62,54 @@ def test_two_level_provider_fallback_supports_family_override() -> None:
     }
 
 
+def test_mock_provider_config_supports_family_specific_fields() -> None:
+    settings = Settings(
+        PROVIDER="mock",
+        LLM_PROVIDER="mock",
+        EMBEDDING_PROVIDER="mock",
+        MOCK_MODEL="shared-mock-model",
+        MOCK_SEED=11,
+        MOCK_LATENCY_MS=0,
+        LLM_MOCK_MODEL="mock-llm-template",
+        LLM_MOCK_PREFIX="template-",
+        EMBEDDING_MOCK_MODEL="mock-embed-template",
+        EMBEDDING_MOCK_DIMENSION=64,
+    )
+
+    assert settings.llm_provider_config() == {
+        "model": "mock-llm-template",
+        "seed": 11,
+        "latency_ms": 0,
+        "prefix": "template-",
+    }
+    assert settings.embedding_provider_config() == {
+        "model": "mock-embed-template",
+        "dimension": 64,
+        "seed": 11,
+        "latency_ms": 0,
+    }
+
+
+def test_build_service_context_accepts_mock_provider_without_api_key() -> None:
+    settings = Settings(
+        PROVIDER="mock",
+        LLM_PROVIDER="mock",
+        EMBEDDING_PROVIDER="mock",
+        LLM_MOCK_MODEL="mock-llm",
+        EMBEDDING_MOCK_MODEL="mock-embed",
+        EMBEDDING_MOCK_DIMENSION=32,
+    )
+
+    context = build_service_context(settings)
+
+    assert context.provider == "mock"
+    assert context.available_providers == ("anthropic", "gemini", "mock", "openai")
+    assert context.provider_statuses[0].status == "healthy"
+    assert context.provider_statuses[1].status == "healthy"
+    assert context.provider_diagnostics[0].provider == "llm:mock"
+    assert context.provider_diagnostics[1].provider == "embedding:mock"
+
+
 def test_cloud_logging_providers_parse_and_normalize() -> None:
     settings = Settings(
         CLOUD_LOGGING_PROVIDERS=" AWS, datadog ,GCP ",
@@ -103,7 +151,7 @@ def test_build_service_context_wires_operational_fields() -> None:
     assert context.service_name == "template-service"
     assert context.service_version == "1.2.3"
     assert context.provider == "openai"
-    assert context.available_providers == ("anthropic", "gemini", "openai")
+    assert context.available_providers == ("anthropic", "gemini", "mock", "openai")
     assert context.vectorstore == "chroma"
     assert context.available_vectorstores == ("chroma",)
     assert context.masked_secrets["openai_api_key"] == "abcd****wxyz"

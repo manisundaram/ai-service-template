@@ -18,7 +18,7 @@ from ai_service_kit.providers import LLMProviderFactory, ProviderFactory
 
 from .config import Settings
 
-TEMPLATE_PROVIDER_NAMES = ("openai", "gemini", "anthropic")
+TEMPLATE_PROVIDER_NAMES = ("anthropic", "gemini", "mock", "openai")
 SUPPORTED_VECTORSTORES = ("chroma",)
 
 
@@ -58,10 +58,10 @@ class ConfigurationHealthCheck(BaseHealthCheck):
         vectorstore_backend = self._settings.vectorstore_backend.strip().lower()
         errors: list[str] = []
 
-        if not self._settings.llm_provider_config().get("api_key"):
+        if llm_provider != "mock" and not self._settings.llm_provider_config().get("api_key"):
             errors.append(f"Missing API key for llm provider: {llm_provider}")
 
-        if not self._settings.embedding_provider_config().get("api_key"):
+        if embedding_provider != "mock" and not self._settings.embedding_provider_config().get("api_key"):
             errors.append(f"Missing API key for embedding provider: {embedding_provider}")
 
         if vectorstore_backend not in SUPPORTED_VECTORSTORES:
@@ -101,15 +101,16 @@ def _build_provider_runtime(
     sources: dict[str, str],
 ) -> ProviderFamilyRuntime:
     is_registered = provider_name in registered_providers if registered_providers else None
-    configured = bool(config.get("api_key"))
-    initialized = configured and is_registered is not False
+    available = True if provider_name in TEMPLATE_PROVIDER_NAMES else is_registered
+    configured = provider_name == "mock" or bool(config.get("api_key"))
+    initialized = configured and available is not False
 
     return ProviderFamilyRuntime(
         family=family,
         name=provider_name,
         model=config.get("model"),
         configured=configured,
-        available=is_registered,
+        available=available,
         initialized=initialized,
         config_sources=sources,
         registered_providers=registered_providers,

@@ -36,6 +36,21 @@ class Settings(ServiceSettings):
     datadog_logging_level: str = Field(default="INFO", alias="DATADOG_LOGGING_LEVEL")
     datadog_api_key: str | None = Field(default=None, alias="DATADOG_API_KEY")
 
+    mock_model: str = Field(default="mock-default", alias="MOCK_MODEL")
+    mock_seed: int = Field(default=0, alias="MOCK_SEED")
+    mock_latency_ms: int = Field(default=0, alias="MOCK_LATENCY_MS")
+
+    llm_mock_model: str | None = Field(default=None, alias="LLM_MOCK_MODEL")
+    llm_mock_seed: int | None = Field(default=None, alias="LLM_MOCK_SEED")
+    llm_mock_latency_ms: int | None = Field(default=None, alias="LLM_MOCK_LATENCY_MS")
+    llm_mock_prefix: str | None = Field(default=None, alias="LLM_MOCK_PREFIX")
+    llm_mock_suffix: str | None = Field(default=None, alias="LLM_MOCK_SUFFIX")
+
+    embedding_mock_model: str | None = Field(default=None, alias="EMBEDDING_MOCK_MODEL")
+    embedding_mock_seed: int | None = Field(default=None, alias="EMBEDDING_MOCK_SEED")
+    embedding_mock_latency_ms: int | None = Field(default=None, alias="EMBEDDING_MOCK_LATENCY_MS")
+    embedding_mock_dimension: int | None = Field(default=None, alias="EMBEDDING_MOCK_DIMENSION")
+
     provider: str = Field(
         default="openai",
         alias="PROVIDER",
@@ -140,12 +155,20 @@ class Settings(ServiceSettings):
             return llm_provider
         return f"llm:{llm_provider},embedding:{embedding_provider}"
 
+    def provider_fields_for(self, family: str) -> list[str]:
+        provider_name = self.resolved_provider(family)
+        if provider_name == "mock":
+            if family == "llm":
+                return ["model", "seed", "latency_ms", "prefix", "suffix"]
+            return ["model", "dimension", "seed", "latency_ms"]
+        return ["api_key", "model", "base_url", "timeout"]
+
     def provider_config_for(self, family: str) -> dict[str, Any]:
         return build_two_level_provider_config(
             values=self._settings_values(),
             family=family,
             provider_type=self.resolved_provider(family),
-            fields=["api_key", "model", "base_url", "timeout"],
+            fields=self.provider_fields_for(family),
         )
 
     def provider_config(self) -> dict[str, Any]:
@@ -203,6 +226,7 @@ class Settings(ServiceSettings):
                 "shared_provider": self.provider,
                 "llm_provider": self.resolved_provider("llm"),
                 "embedding_provider": self.resolved_provider("embedding"),
+                "mock_mode": self.mock_mode,
                 "vectorstore_backend": self.vectorstore_backend,
                 "default_collection_name": self.default_collection_name,
                 "cloud_logging_providers": list(self.cloud_logging_providers),
@@ -235,6 +259,9 @@ class Settings(ServiceSettings):
             "gcp_project_id": self.gcp_project_id,
             "datadog_logging_level": self.datadog_logging_level,
             "datadog_api_key": masked["datadog_api_key"],
+            "mock_model": self.mock_model,
+            "mock_seed": self.mock_seed,
+            "mock_latency_ms": self.mock_latency_ms,
             "mock_mode": self.mock_mode,
             "provider": self.provider,
             "provider_summary": self.provider_summary(),
